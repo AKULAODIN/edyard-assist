@@ -1,0 +1,29 @@
+class H(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path in ["/twa/send", "/twa/projects", "/twa/history"]:
+            d = json.loads(self.rfile.read(int(self.headers['Content-Length'])).decode())
+            if self.path == "/twa/projects":
+                self.send_json({"projects": list(active_projects)})
+            elif self.path == "/twa/history":
+                self.send_json({"records": supabase_select("order=timestamp.desc&limit=30")})
+            elif self.path == "/twa/send":
+                proj = d.get("project", "Общий")
+                ai = ask_ai(d["message"], proj)
+                supabase_insert({"user_message": d["message"], "ai_response": ai, "project": proj})
+                self.send_json({"success": True, "response": ai})
+        else:
+            self.send_error(404)
+    def send_json(self, d):
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(json.dumps(d, ensure_ascii=False).encode())
+
+# === ЗАПУСК ===
+if name == "__main__":
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(MessageHandler(filters.ALL, handle))
+    app.job_queue.run_repeating(check_reminders, 300)
+    threading.Thread(target=lambda: HTTPServer(('', int(os.getenv("PORT", 10000))), H).serve_forever(), daemon=True).start()
+    app.run_polling()
